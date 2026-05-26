@@ -8,3 +8,4 @@ ci_cd_platform.egg-info/dependency_links.txt
 ci_cd_platform.egg-info/requires.txt
 ci_cd_platform.egg-info/top_level.txt
 tests/test_api.py
+tests/test_rollback.py
