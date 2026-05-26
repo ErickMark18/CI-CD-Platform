@@ -5,15 +5,20 @@ import time
 import os
 
 
-def docker_available():
+def app_container_running():
+    if os.getenv("CI"):
+        return False
     try:
-        result = subprocess.run(["docker", "info"], capture_output=True, timeout=5)
-        return result.returncode == 0
+        result = subprocess.run(
+            ["docker", "inspect", "app", "--format", "{{.State.Running}}"],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.returncode == 0 and "true" in result.stdout.lower()
     except Exception:
         return False
 
 
-@pytest.mark.skipif(not docker_available(), reason="Docker not available")
+@pytest.mark.skipif(not app_container_running(), reason="App container not running")
 class TestRollback:
     @pytest.fixture(autouse=True)
     def setup(self):
