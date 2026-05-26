@@ -2,11 +2,11 @@ name: CO2 Tracker
 
 on:
   push:
-    branches: [master]
+    branches: [master, main]
   workflow_run:
-    workflows: ["Test Workflow","CI","CD"] 
+    workflows: ["CI", "CD"]
     types: [completed]
-    branches: [master]
+    branches: [master, main]
 
 env:
   CO2_API_URL: ${{ secrets.CO2_API_URL }}
@@ -50,7 +50,7 @@ jobs:
           fi
 
       - name: Track CO2 emissions
-        if: env.CO2_API_URL != '' && env.CO2_API_KEY != ''
+        if: secrets.CO2_API_URL != '' && secrets.CO2_API_KEY != ''
         run: |
           REPO="${{ github.repository }}"
           BRANCH="${{ github.ref_name }}"

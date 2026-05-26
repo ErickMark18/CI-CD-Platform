@@ -3,6 +3,9 @@ name: CD
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
 
 env:
   REPO_OWNER: ${{ github.repository_owner }}
