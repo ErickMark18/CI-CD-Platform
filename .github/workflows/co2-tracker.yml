@@ -1,0 +1,70 @@
+name: CO2 Tracker
+
+on:
+  push:
+    branches: [master]
+  workflow_run:
+    workflows: ["*"] 
+    types: [completed]
+    branches: [master]
+
+env:
+  CO2_API_URL: ${{ secrets.CO2_API_URL }}
+  CO2_API_KEY: ${{ secrets.CO2_API_KEY }}
+
+jobs:
+  track-co2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Calculate workflow duration
+        id: duration
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            START_TIME="${{ github.event.workflow_run.run_started_at }}"
+            END_TIME="${{ github.event.workflow_run.updated_at }}"
+            START_MS=$(date -d "$START_TIME" +%s 2>/dev/null || date -u -d "$START_TIME" +%s 2>/dev/null)
+            END_MS=$(date -d "$END_TIME" +%s 2>/dev/null || date -u -d "$END_TIME" +%s 2>/dev/null)
+            DURATION=$((END_MS - START_MS))
+          else
+            DURATION=300
+          fi
+          echo "duration_s=$DURATION" >> $GITHUB_OUTPUT
+
+      - name: Detect runner region
+        id: region
+        run: |
+          # Nota: En runners públicos de GitHub esto siempre irá al else.
+          # Si usas self-hosted runners en AWS/Azure/GCP, asegúrate de exportar esas variables tú mismo.
+          if [ -n "$AWS_REGION" ]; then
+            echo "region=$AWS_REGION" >> $GITHUB_OUTPUT
+            echo "provider=aws" >> $GITHUB_OUTPUT
+          elif [ -n "$AZURE_REGION" ]; then
+            echo "region=$AZURE_REGION" >> $GITHUB_OUTPUT
+            echo "provider=azure" >> $GITHUB_OUTPUT
+          elif [ -n "$GCP_REGION" ]; then
+            echo "region=$GCP_REGION" >> $GITHUB_OUTPUT
+            echo "provider=gcp" >> $GITHUB_OUTPUT
+          else
+            echo "region=eu-west-1" >> $GITHUB_OUTPUT
+            echo "provider=aws" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Track CO2 emissions
+        if: env.CO2_API_URL != '' && env.CO2_API_KEY != ''
+        run: |
+          REPO="${{ github.repository }}"
+          BRANCH="${{ github.ref_name }}"
+          WORKFLOW_NAME="${{ github.workflow }}"
+          COMMIT_SHA="${{ github.sha }}"
+          
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            REPO="${{ github.event.workflow_run.repository.full_name }}"
+            BRANCH="${{ github.event.workflow_run.head_branch }}"
+            WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+            COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          fi
+          
+          curl -s -X POST "$CO2_API_URL/deploys" \
+            -H "Content-Type: application/json" \
+            -H "X-API-Key: $CO2_API_KEY" \
+            -d "{\"repo\":\"$REPO\",\"branch\":\"$BRANCH\",\"region\":\"${{ steps.region.outputs.region }}\",\"provider\":\"${{ steps.region.outputs.provider }}\",\"duration_s\":${{ steps.duration.outputs.duration_s }},\"runner_size\":\"medium\",\"commit_sha\":\"$COMMIT_SHA\",\"workflow_name\":\"$WORKFLOW_NAME\"}"
