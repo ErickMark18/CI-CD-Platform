@@ -2,11 +2,11 @@ name: CO2 Tracker
 
 on:
   push:
-    branches: [master, main]
+    branches: [master]
   workflow_run:
-    workflows: ["Test Workflow","CI", "CD"]
+    workflows: ["*"]
     types: [completed]
-    branches: [master, main]
+    branches: [master]
 
 env:
   CO2_API_URL: ${{ secrets.CO2_API_URL }}
