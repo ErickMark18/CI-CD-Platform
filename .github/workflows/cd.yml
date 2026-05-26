@@ -1,0 +1,54 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REPO_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract short hash
+        id: hash
+        run: echo "sha_short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: IMAGE_TAG
+          envs: |
+            IMAGE_TAG=sha-${{ steps.hash.outputs.sha_short }}
+          script: |
+            cd /opt/ci-cd-platform
+            chmod +x scripts/deploy.sh
+            ./scripts/deploy.sh sha-${{ steps.hash.outputs.sha_short }}
+
+      - name: Healthcheck
+        run: |
+          sleep 15
+          curl -f http://${{ secrets.DEPLOY_HOST }}/health || exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            if [ -f /tmp/previous_image ]; then
+              PREVIOUS_IMAGE=$(cat /tmp/previous_image)
+              docker pull ${PREVIOUS_IMAGE}
+              docker stop app nginx-proxy 2>/dev/null || true
+              docker rm app nginx-proxy 2>/dev/null || true
+              docker run -d --name app --restart unless-stopped -p 8000:8000 ${PREVIOUS_IMAGE}
+              docker rm nginx-proxy 2>/dev/null || true
+            fi
