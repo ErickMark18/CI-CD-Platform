@@ -50,7 +50,7 @@ jobs:
           fi
 
       - name: Track CO2 emissions
-        if: secrets.CO2_API_URL != '' && secrets.CO2_API_KEY != ''
+        if: env.CO2_API_URL != '' && env.CO2_API_KEY != ''
         run: |
           REPO="${{ github.repository }}"
           BRANCH="${{ github.ref_name }}"
