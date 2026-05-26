@@ -2,12 +2,12 @@ name: CO2 Tracker
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   workflow_dispatch:
   workflow_run:
     workflows: ["Test Workflow","CI","CD"]
     types: [completed]
-    branches: [main]
+    branches: [master]
 
 jobs:
   track-co2:
