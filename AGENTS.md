@@ -1,51 +1,62 @@
 # AGENTS.md
 
-## Proyecto: Mini Plataforma CI/CD (6 fases)
+## Proyecto: Mini Plataforma CI/CD
 
 Stack: Python (FastAPI) · Docker · GitHub Actions · Nginx · TypeScript
 
-## Estructura del proyecto
+## Estructura
 
 ```
-app/          # Código de la API FastAPI
-tests/        # Tests pytest + httpx
-Makefile      # scripts: make test, make build, etc.
+app/                  # API FastAPI (main.py)
+tests/                # pytest + httpx (test_api.py, test_rollback.py)
+pyproject.toml        # setuptools + pytest config
+Makefile              # make install, make test
+docker-compose.yml    # dev con hot-reload
+docker-compose.prod.yml  # prod (app + nginx)
+Dockerfile            # multi-stage (builder → production)
+nginx/nginx.conf       # reverse proxy
+scripts/
+  deploy.sh
+  rollback.sh
+dashboard/            # React + TypeScript + Vite
 .github/workflows/
-  ci.yml      # Tests en cada push/PR
-  cd.yml      # Deploy solo en push a main
-Dockerfile    # Multi-stage build
-docker-compose.yml
+  ci.yml             # test + build ghcr.io (push a master/main, PR)
+  cd.yml             # deploy SSH solo en push a main
+  co2-tracker.yml    # emisiones CO2
+  test.yml           # workflow legacy
 ```
 
-## Reglas de seguridad (NO violar)
-
-- **Nunca** committed: SSH keys privadas, tokens, `.env`, IPs de servidor
-- Van a **GitHub Secrets**: `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, tokens ghcr.io
-- `.gitignore` ya incluye `*.env`, `*.log`, `__pycache__/`, `.pytest_cache/`
-
-## Comandos esenciales (una vez exista el código)
+## Comandos locales (Windows)
 
 ```bash
-make test        # Ejecutar tests localmente
-docker build -t mi-app .          # Construir imagen
-docker run --rm mi-app pytest     # Tests dentro del contenedor
+py -m pip install -e .           # instalar dependencias
+py -m pip install pytest httpx    # dependencias de test
+py -m pytest -v                   # ejecutar tests
+py -m uvicorn app.main:app --reload  # arrancar API
 ```
 
-## Desarrollo por fases
+## Reglas de seguridad
 
-| Fase | Entregable |
-|------|------------|
-| 1 | API FastAPI (3 endpoints + tests al 100%) |
-| 2 | Dockerfile multi-stage + docker-compose + .dockerignore |
-| 3 | ci.yml + cd.yml con ghcr.io y caché Docker |
-| 4 | Deploy SSH + Nginx reverse proxy |
-| 5 | Rollback automático con healthcheck |
-| 6 | Dashboard TypeScript + README.md |
+- **Nunca** committed: SSH keys, tokens, `.env`, IPs → van a **GitHub Secrets**
+- `.gitignore` excluye: `*.env`, `*.log`, `__pycache__/`, `.pytest_cache/`, `*.db`
+
+## Tests
+
+- `tests/test_api.py` — 7 tests unitarios de la API ( asyncio + httpx)
+- `tests/test_rollback.py` — tests de integración (requieren Docker corriendo)
+- Rollback tests se saltan si no hay contenedor
+
+## Workflows
+
+- **ci.yml**: se dispara en push a `master`/`main` y PRs. Jobs: test → build → push ghcr.io
+- **cd.yml**: solo en push a `main`. Deploy SSH + healthcheck + rollback automático
+- **co2-tracker.yml**: escucha `workflow_run` de CI/CD para trackear emisiones
+- **test.yml**: workflow legacy, no usar
 
 ## Notas de implementación
 
-- **Docker**: imagen base `python:3.12-slim`, multi-stage para producción
-- **Versiones**: usar tags semánticos (`v1.0.0`) + hash commit (`sha-abc1234`), nunca solo `latest`
-- **Healthcheck**: `GET /health` devuelve `{status: ok, version: 1.0.0}` — el pipeline lo usa para verificar deploy
-- **Rollback (Fase 5)**: guardar `PREVIOUS_IMAGE` antes del deploy; si healthcheck falla tras 15s, rollback a imagen anterior
-- **CI/CD separado**: `ci.yml` en todo push/PR; `cd.yml` solo en push a `main`
+- **Healthcheck**: `GET /health` → `{status: "ok", "version": "1.0.0"}`
+- **Versiones imágenes**: tag con `sha-xxxxxx` + nombre de rama, nunca `latest`
+- **Rollback**: guarda imagen previa en `/tmp/previous_image` en el servidor antes de deploy
+- **Dockerignore**: excluye `.git`, `tests/`, `__pycache__/`, archivos de desarrollo
+- **pyproject.toml**: usa `packages.find.include = ["app*"]` para evitar conflictos con `nginx/` y `dashboard/`
