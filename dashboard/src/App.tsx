@@ -48,36 +48,96 @@ function DeployRow({ deploy, index }: { deploy: Deploy; index: number }) {
   )
 }
 
-function TrendChart({ data }: { data: number[] }) {
+function TrendChart({ data, labels }: { data: number[]; labels: string[] }) {
   const max = Math.max(...data)
   const min = Math.min(...data)
   const range = max - min || 1
+  const padding = { top: 30, right: 30, bottom: 40, left: 50 }
+  const width = 500
+  const height = 250
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
   const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * 100
-    const y = 100 - ((v - min) / range) * 80
-    return `${x},${y}`
-  }).join(' ')
+    const x = padding.left + (i / (data.length - 1)) * chartWidth
+    const y = padding.top + (1 - (v - min) / range) * chartHeight
+    return { x, y, value: v }
+  })
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  const areaD = `${pathD} L ${points[points.length - 1].x} ${height - padding.bottom} L ${points[0].x} ${height - padding.bottom} Z`
+
+  const yTicks = 4
+  const yStep = range / yTicks
 
   return (
     <div className="trend-chart">
-      <svg viewBox="0 0 100 60" preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.3" />
+            <stop offset="0%" stopColor="var(--accent-green)" stopOpacity="0.2" />
             <stop offset="100%" stopColor="var(--accent-green)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        <polyline
-          points={points}
-          fill="none"
-          stroke="var(--accent-green)"
-          strokeWidth="0.5"
-          vectorEffect="non-scaling-stroke"
-        />
-        <polygon
-          points={`0,100 ${points} 100,100`}
-          fill="url(#chartGrad)"
-        />
+
+        {Array.from({ length: yTicks + 1 }).map((_, i) => {
+          const y = padding.top + (i / yTicks) * chartHeight
+          const value = Math.round(max - i * yStep)
+          return (
+            <g key={i}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke="var(--border)"
+                strokeWidth="1"
+                strokeDasharray="4,4"
+              />
+              <text
+                x={padding.left - 10}
+                y={y + 5}
+                fill="var(--text-secondary)"
+                fontSize="14"
+                textAnchor="end"
+                fontFamily="var(--font-mono)"
+              >
+                {value}s
+              </text>
+            </g>
+          )
+        })}
+
+        <polygon points={areaD} fill="url(#chartGrad)" />
+        <path d={pathD} fill="none" stroke="var(--accent-green)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="8" fill="var(--bg-primary)" stroke="var(--accent-green)" strokeWidth="3" />
+            <circle cx={p.x} cy={p.y} r="4" fill="var(--accent-green)" />
+            <text
+              x={p.x}
+              y={p.y - 16}
+              fill="var(--text-primary)"
+              fontSize="14"
+              textAnchor="middle"
+              fontFamily="var(--font-mono)"
+              fontWeight="700"
+            >
+              {p.value}s
+            </text>
+            <text
+              x={p.x}
+              y={height - padding.bottom + 25}
+              fill="var(--text-secondary)"
+              fontSize="13"
+              textAnchor="middle"
+              fontFamily="var(--font-mono)"
+            >
+              {labels[i]}
+            </text>
+          </g>
+        ))}
       </svg>
     </div>
   )
@@ -94,6 +154,7 @@ export default function App() {
   const avgDuration = Math.ceil(deploys.reduce((a, b) => a + b.duration, 0) / deploys.length)
   const successRate = Math.round((deploys.filter(d => d.status === 'success').length / deploys.length) * 100)
   const trendData = deploys.slice(-5).map(d => d.duration)
+  const trendLabels = deploys.slice(-5).map(d => d.sha)
 
   return (
     <div className={`app ${loaded ? 'loaded' : ''}`}>
@@ -141,7 +202,7 @@ export default function App() {
             <h2>Pipeline Duration Trend</h2>
             <span className="trend-sub">seconds · last 5 deploys</span>
           </div>
-          <TrendChart data={trendData} />
+          <TrendChart data={trendData} labels={trendLabels} />
         </section>
 
         <section className="deploys-section">

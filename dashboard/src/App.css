@@ -164,8 +164,8 @@
 }
 
 .trend-chart {
-  height: 120px;
-  padding: 1rem 1.5rem;
+  height: 320px;
+  padding: 1.5rem 2rem;
 }
 
 .trend-chart svg {
