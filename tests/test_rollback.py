@@ -5,6 +5,15 @@ import time
 import os
 
 
+def docker_available():
+    try:
+        result = subprocess.run(["docker", "info"], capture_output=True, timeout=5)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class TestRollback:
     @pytest.fixture(autouse=True)
     def setup(self):
