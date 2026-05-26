@@ -4,13 +4,11 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [master]
-
-env:
-  REPO_OWNER: ${{ github.repository_owner }}
+    branches: [master, main]
 
 jobs:
   deploy:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +24,6 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: IMAGE_TAG
-          envs: |
-            IMAGE_TAG=sha-${{ steps.hash.outputs.sha_short }}
           script: |
             cd /opt/ci-cd-platform
             chmod +x scripts/deploy.sh
